@@ -1,1 +1,33 @@
-{}
+{
+    "100": {
+        "name": "Number of rounds",
+        "values": {
+            "0": {
+                "name": "As many as players",
+                "description": "Play as many rounds as there are players in the game.",
+                "tmdisplay": "As many as players"
+            },
+            "1": {
+                "name": "1 round",
+                "tmdisplay": "1 round"
+            },
+            "2": {
+                "name": "2 rounds",
+                "tmdisplay": "2 rounds"
+            },
+            "3": {
+                "name": "3 rounds",
+                "tmdisplay": "3 rounds"
+            },
+            "4": {
+                "name": "4 rounds",
+                "tmdisplay": "4 rounds"
+            },
+            "5": {
+                "name": "5 rounds",
+                "tmdisplay": "5 rounds"
+            }
+        },
+        "default": 0
+    }
+}

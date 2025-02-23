@@ -1,1 +1,31 @@
-{}
+{
+    "table": {
+        "minPointsInRound": {
+            "id": 13,
+            "name": "Minimum points earned in a round",
+            "type": "int"
+        },
+        "maxPointsInRound": {
+            "id": 14,
+            "name": "Maximum points earned in a round",
+            "type": "int"
+        }
+    },
+    "player": {
+        "numberOfRoundsWon": {
+            "id": 12,
+            "name": "Rounds won",
+            "type": "int"
+        },
+        "minPointsInRound": {
+            "id": 13,
+            "name": "Minimum points earned in a round",
+            "type": "int"
+        },
+        "maxPointsInRound": {
+            "id": 14,
+            "name": "Maximum points earned in a round",
+            "type": "int"
+        }
+    }
+}

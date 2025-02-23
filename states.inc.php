@@ -2,7 +2,7 @@
 /**
  *------
  * BGA framework: Gregory Isabelli & Emmanuel Colin & BoardGameArena
- * ZeroDown implementation : © <Your name here> <Your email address here>
+ * ZeroDown implementation : © Oliver THEBAULT (a.k.a. Oliboy50)
  *
  * This code has been produced on the BGA studio platform for use on http://boardgamearena.com.
  * See http://en.boardgamearena.com/#!doc/Studio for more information.
@@ -49,52 +49,69 @@
 
 //    !! It is not a good idea to modify this file when a game is running !!
 
+require_once('modules/php/constants.inc.php');
 
 $machinestates = [
-
     // The initial state. Please do not modify.
-
-    1 => array(
-        "name" => "gameSetup",
-        "description" => "",
-        "type" => "manager",
-        "action" => "stGameSetup",
-        "transitions" => ["" => 2]
-    ),
-
-    // Note: ID=2 => your first state
-
-    2 => [
-        "name" => "playerTurn",
-        "description" => clienttranslate('${actplayer} must play a card or pass'),
-        "descriptionmyturn" => clienttranslate('${you} must play a card or pass'),
-        "type" => "activeplayer",
-        "args" => "argPlayerTurn",
-        "possibleactions" => [
-            // these actions are called from the front with bgaPerformAction, and matched to the function on the game.php file
-            "actPlayCard",
-            "actPass",
-        ],
-        "transitions" => ["playCard" => 3, "pass" => 3]
-    ],
-
-    3 => [
-        "name" => "nextPlayer",
+    ST_BGA_GAME_SETUP => [
+        'name' => 'gameSetup',
         "description" => '',
-        "type" => "game",
-        "action" => "stNextPlayer",
-        "updateGameProgression" => true,
-        "transitions" => ["endGame" => 99, "nextPlayer" => 2]
+        'type' => 'manager',
+        'action' => 'stGameSetup',
+        'transitions' => ['' => ST_START_ROUND],
     ],
 
-    // Final state.
-    // Please do not modify (and do not overload action/args methods).
-    99 => [
-        "name" => "gameEnd",
-        "description" => clienttranslate("End of game"),
-        "type" => "manager",
-        "action" => "stGameEnd",
-        "args" => "argGameEnd"
+    // Start round, deal cards and define the first player
+    ST_START_ROUND => [
+        'name' => 'startRound',
+        'description' => '',
+        'type' => 'game',
+        'action' => 'stStartRound',
+        'updateGameProgression' => true,
+        'transitions' => ['playerTurn' => ST_PLAYER_TURN],
     ],
 
+    // The player must choose to swap a card or knock
+    ST_PLAYER_TURN => [
+        'name' => 'playerTurn',
+        'description' => clienttranslate('${actplayer} must swap a card or knock'),
+        'descriptionmyturn' => clienttranslate('${you} must swap a card or knock'),
+        'type' => 'activeplayer',
+        'args' => 'argPlayerTurn',
+        'possibleactions' => ['actSwapCard', 'actKnock'],
+        'transitions' => [
+            'nextPlayer' => ST_ACTIVATE_NEXT_PLAYER,
+            'endRound' => ST_END_ROUND,
+            'zombiePass' => ST_ACTIVATE_NEXT_PLAYER,
+        ],
+    ],
+
+    // Activate the next player
+    ST_ACTIVATE_NEXT_PLAYER => [
+        'name' => 'activateNextPlayer',
+        'description' => '',
+        'type' => 'game',
+        'action' => 'stActivateNextPlayer',
+        'transitions' => [
+            'playerTurn' => ST_PLAYER_TURN,
+        ],
+    ],
+
+    // End round, count round points and check if the game is over or if we need to start a new round
+    ST_END_ROUND => [
+        'name' => 'endRound',
+        'description' => '',
+        'type' => 'game',
+        'action' => 'stEndRound',
+        'transitions' => ['nextRound' => ST_START_ROUND, 'endGame' => ST_BGA_GAME_END],
+    ],
+
+    // Final state. Please do not modify (and do not overload action/args methods).
+    ST_BGA_GAME_END => [
+        'name' => 'gameEnd',
+        'description' => clienttranslate('End of game'),
+        'type' => 'manager',
+        'action' => 'stGameEnd',
+        'args' => 'argGameEnd'
+    ],
 ];

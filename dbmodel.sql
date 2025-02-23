@@ -1,7 +1,7 @@
 
 -- ------
 -- BGA framework: Gregory Isabelli & Emmanuel Colin & BoardGameArena
--- ZeroDown implementation : © <Your name here> <Your email address here>
+-- ZeroDown implementation : © Oliver THEBAULT (a.k.a. Oliboy50)
 --
 -- This code has been produced on the BGA studio platform for use on http://boardgamearena.com.
 -- See http://en.boardgamearena.com/#!doc/Studio for more information.
@@ -20,15 +20,14 @@
 
 -- Example 1: create a standard "card" table to be used with the "Deck" tools (see example game "hearts"):
 
--- CREATE TABLE IF NOT EXISTS `card` (
---   `card_id` int(10) unsigned NOT NULL AUTO_INCREMENT,
---   `card_type` varchar(16) NOT NULL,
---   `card_type_arg` int(11) NOT NULL,
---   `card_location` varchar(16) NOT NULL,
---   `card_location_arg` int(11) NOT NULL,
---   PRIMARY KEY (`card_id`)
--- ) ENGINE=InnoDB DEFAULT CHARSET=utf8 AUTO_INCREMENT=1 ;
-
+CREATE TABLE IF NOT EXISTS `card` (
+  `card_id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `card_type` VARCHAR(30) NOT NULL,
+  `card_type_arg` INT NOT NULL,
+  `card_location` VARCHAR(30) NOT NULL,
+  `card_location_arg` INT NOT NULL,
+  PRIMARY KEY (`card_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8 AUTO_INCREMENT=1;
 
 -- Example 2: add a custom field to the standard "player" table
 -- ALTER TABLE `player` ADD `player_my_custom_field` INT UNSIGNED NOT NULL DEFAULT '0';

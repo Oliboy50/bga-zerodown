@@ -1,7 +1,7 @@
 /**
  *------
  * BGA framework: Gregory Isabelli & Emmanuel Colin & BoardGameArena
- * ZeroDown implementation : © <Your name here> <Your email address here>
+ * ZeroDown implementation : © Oliver THEBAULT (a.k.a. Oliboy50)
  *
  * This code has been produced on the BGA studio platform for use on http://boardgamearena.com.
  * See http://en.boardgamearena.com/#!doc/Studio for more information.
@@ -16,12 +16,12 @@
  */
 
 define([
-    "dojo","dojo/_base/declare",
-    "ebg/core/gamegui",
-    "ebg/counter"
+    'dojo','dojo/_base/declare',
+    'ebg/core/gamegui',
+    'ebg/counter'
 ],
 function (dojo, declare) {
-    return declare("bgagame.zerodown", ebg.core.gamegui, {
+    return declare('bgagame.zerodown', ebg.core.gamegui, {
         constructor: function(){
             console.log('zerodown constructor');
 
@@ -41,12 +41,11 @@ function (dojo, declare) {
             _ when the game starts
             _ when a player refreshes the game page (F5)
 
-            "gamedatas" argument contains all datas retrieved by your "getAllDatas" PHP method.
+            'gamedatas' argument contains all datas retrieved by your 'getAllDatas' PHP method.
         */
 
-        setup: function( gamedatas )
-        {
-            console.log( "Starting game setup" );
+        setup: function( gamedatas ) {
+            console.log( 'Starting game setup' );
 
             // Example to add a div on the game area
             document.getElementById('game_play_area').insertAdjacentHTML('beforeend', `
@@ -69,13 +68,13 @@ function (dojo, declare) {
                 `);
             });
 
-            // TODO: Set up your game interface here, according to "gamedatas"
+            // TODO: Set up your game interface here, according to 'gamedatas'
 
 
-            // Setup game notifications to handle (see "setupNotifications" method below)
+            // Setup game notifications to handle (see 'setupNotifications' method below)
             this.setupNotifications();
 
-            console.log( "Ending game setup" );
+            console.log( 'Ending game setup' );
         },
 
 
@@ -85,8 +84,7 @@ function (dojo, declare) {
         // onEnteringState: this method is called each time we are entering into a new game state.
         //                  You can use this method to perform some user interface changes at this moment.
         //
-        onEnteringState: function( stateName, args )
-        {
+        onEnteringState: function( stateName, args ) {
             console.log( 'Entering state: '+stateName, args );
 
             switch( stateName )
@@ -111,8 +109,7 @@ function (dojo, declare) {
         // onLeavingState: this method is called each time we are leaving a game state.
         //                 You can use this method to perform some user interface changes at this moment.
         //
-        onLeavingState: function( stateName )
-        {
+        onLeavingState: function( stateName ) {
             console.log( 'Leaving state: '+stateName );
 
             switch( stateName )
@@ -134,11 +131,10 @@ function (dojo, declare) {
             }
         },
 
-        // onUpdateActionButtons: in this method you can manage "action buttons" that are displayed in the
+        // onUpdateActionButtons: in this method you can manage 'action buttons' that are displayed in the
         //                        action status bar (ie: the HTML links in the status bar).
         //
-        onUpdateActionButtons: function( stateName, args )
-        {
+        onUpdateActionButtons: function( stateName, args ) {
             console.log( 'onUpdateActionButtons: '+stateName, args );
 
             if( this.isCurrentPlayerActive() )
@@ -150,10 +146,10 @@ function (dojo, declare) {
 
                     // Add test action buttons in the action status bar, simulating a card click:
                     playableCardsIds.forEach(
-                        cardId => this.statusBar.addActionButton(_('Play card with id ${card_id}').replace('${card_id}', cardId), () => this.onCardClick(cardId))
+                        cardId => this.statusBar.addActionButton(_('Play card with id ${cardId}').replace('${cardId}', cardId), () => this.onCardClick(cardId))
                     );
 
-                    this.statusBar.addActionButton(_('Pass'), () => this.bgaPerformAction("actPass"), { color: 'secondary' });
+                    this.statusBar.addActionButton(_('Knock'), () => this.bgaPerformAction('actKnock'), { color: 'secondary' });
                     break;
                 }
             }
@@ -164,7 +160,7 @@ function (dojo, declare) {
 
         /*
 
-            Here, you can defines some utility methods that you can use everywhere in your javascript
+            Here, you can define some utility methods that you can use everywhere in your javascript
             script.
 
         */
@@ -185,17 +181,36 @@ function (dojo, declare) {
         */
 
         // Example:
+        // onBtnPlayCard: function () {
+        //     const action = 'actPlayCard';
+        //     if (!this.checkAction(action)) {
+        //         return;
+        //     }
+        //
+        //     // Check the number of selected items
+        //     const selected_cards = this.playerHand.getSelectedItems();
+        //     if (selected_cards.length !== 1) {
+        //         this.showMessage(_('Please select a card'), 'error');
+        //         return;
+        //     }
+        //
+        //     // Check the playability of the card
+        //     const card_id = selected_cards[0].id;
+        //     if (document.getElementById('myhand_item_' + card_id).classList.contains('unplayable')) {
+        //         this.showMessage(_('You cannot play this card now'), 'error');
+        //         this.playerHand.unselectAll();
+        //         return;
+        //     }
+        //
+        //     // Play the card
+        //     this.playerHand.unselectAll();
+        //     this.bgaPerformAction(action, {card_id: card_id});
+        // },
 
-        onCardClick: function( card_id )
-        {
-            console.log( 'onCardClick', card_id );
+        onCardClick: function( cardId ) {
+            console.log( 'onCardClick', cardId );
 
-            this.bgaPerformAction("actPlayCard", {
-                card_id,
-            }).then(() =>  {
-                // What to do after the server call if it succeeded
-                // (most of the time, nothing, as the game will react to notifs / change of state instead)
-            });
+            this.bgaPerformAction('actSwapCard', {cardId});
         },
 
 
@@ -207,23 +222,22 @@ function (dojo, declare) {
 
             In this method, you associate each of your game notifications with your local method to handle it.
 
-            Note: game notification names correspond to "notifyAllPlayers" and "notifyPlayer" calls in
+            Note: game notification names correspond to 'notifyAllPlayers' and 'notifyPlayer' calls in
                   your zerodown.game.php file.
 
         */
-        setupNotifications: function()
-        {
+        setupNotifications: function() {
             console.log( 'notifications subscriptions setup' );
 
             // TODO: here, associate your game notifications with local methods
 
             // Example 1: standard notification handling
-            // dojo.subscribe( 'cardPlayed', this, "notif_cardPlayed" );
+            // dojo.subscribe( 'cardPlayed', this, 'notif_cardPlayed' );
 
             // Example 2: standard notification handling + tell the user interface to wait
             //            during 3 seconds after calling the method in order to let the players
             //            see what is happening in the game.
-            // dojo.subscribe( 'cardPlayed', this, "notif_cardPlayed" );
+            // dojo.subscribe( 'cardPlayed', this, 'notif_cardPlayed' );
             // this.notifqueue.setSynchronous( 'cardPlayed', 3000 );
             //
         },
@@ -233,12 +247,11 @@ function (dojo, declare) {
         /*
         Example:
 
-        notif_cardPlayed: function( notif )
-        {
+        notif_cardPlayed: function( notif ) {
             console.log( 'notif_cardPlayed' );
             console.log( notif );
 
-            // Note: notif.args contains the arguments specified during you "notifyAllPlayers" / "notifyPlayer" PHP call
+            // Note: notif.args contains the arguments specified during you 'notifyAllPlayers' / 'notifyPlayer' PHP call
 
             // TODO: play the card in the user interface.
         },
