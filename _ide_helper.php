@@ -18,7 +18,7 @@ namespace Bga\GameFramework\Actions\Types {
     class IntParam {
         public function __construct(
             ?string $name = null,
-            public ?int $min = null,
+            public ?int $min = null, 
             public ?int $max = null,
         ) {}
 
@@ -38,7 +38,7 @@ namespace Bga\GameFramework\Actions\Types {
     class FloatParam {
         public function __construct(
             ?string $name = null,
-            public ?float $min = null,
+            public ?float $min = null, 
             public ?float $max = null,
         ) {}
 
@@ -49,7 +49,7 @@ namespace Bga\GameFramework\Actions\Types {
     class IntArrayParam {
         public function __construct(
             ?string $name = null,
-            public ?int $min = null,
+            public ?int $min = null, 
             public ?int $max = null,
         ) {}
 
@@ -60,12 +60,12 @@ namespace Bga\GameFramework\Actions\Types {
     class StringParam {
         public function __construct(
             ?string $name = null,
-            public ?bool $alphanum = false,
-            public ?bool $alphanum_dash = false,
-            public ?bool $base64 = false,
+            public ?bool $alphanum = false, 
+            public ?bool $alphanum_dash = false, 
+            public ?bool $base64 = false, 
             public ?array $enum = null,
         ) {}
-
+    
         public function getValue(string $paramName): string { return ''; }
     }
 
@@ -74,10 +74,10 @@ namespace Bga\GameFramework\Actions\Types {
         public function __construct(
             ?string $name = null,
             public ?bool $associative = true,
-            public ?bool $alphanum = true,
+            public ?bool $alphanum = true, 
         ) {}
-
-        public function getValue(string $paramName): mixed { return []; }
+    
+        public function getValue(string $paramName): mixed { return []; }    
     }
 }
 
@@ -113,6 +113,39 @@ namespace Bga\GameFramework {
             //
         }
     }
+
+    abstract class TableOptions {
+        /**
+         * Get the value of a table option.
+         */
+        public function get(int $optionId): int {
+            return 0;
+        }
+    
+        /**
+         * Indicates if the table is Turn-based.
+         */
+        function isTurnBased(): bool {
+            return false;
+        }
+    
+        /**
+         * Indicates if the table is Real-time.
+         */
+        function isRealTime(): bool {
+            return false;
+        }
+    }
+
+    abstract class UserPreferences {
+        /**
+         * Gets the value of a user preference for a player (cached in game DB). Null if unset.
+         */
+        function get(int $playerId, int $prefId): ?int
+        {
+            return null;
+        }
+    }
 }
 
 namespace Bga\GameFramework\Db {
@@ -133,7 +166,7 @@ namespace Bga\GameFramework\Db {
         {
             return null;
         }
-
+        
         /**
          * Retrieve all variables stored in DB (or a selected subset, if the function is called with parameters).
          */
@@ -192,7 +225,7 @@ namespace {
      */
     function clienttranslate(string $text): string
     {
-        return '';
+        return ''; 
     }
 
     /**
@@ -201,7 +234,7 @@ namespace {
      */
     function totranslate(string $text): string
     {
-        return '';
+        return ''; 
     }
 
     function bga_rand(int $min, int $max): int {
@@ -316,7 +349,7 @@ namespace {
          */
         final protected function _(string $text): string
         {
-            return '';
+            return ''; 
         }
 
         /**
@@ -594,7 +627,7 @@ namespace {
          */
         final public function state_id(): string|int
         {
-            return '0';
+            return '0'; 
         }
 
         /**
@@ -673,6 +706,16 @@ namespace {
         readonly public \Bga\GameFramework\Notify $notify;
 
         /**
+         * Access the underlying TableOptions object.
+         */
+        readonly public \Bga\GameFramework\TableOptions $tableOptions;
+
+        /**
+         * Access the underlying UserPreferences object.
+         */
+        readonly public \Bga\GameFramework\UserPreferences $userPreferences;
+
+        /**
          * Default constructor.
          */
         public function __construct()
@@ -725,7 +768,7 @@ namespace {
          */
         final static public function escapeStringForDB(string $string): string
         {
-            return '';
+            return ''; 
         }
 
         /**
@@ -809,7 +852,7 @@ namespace {
          */
         final public function getActivePlayerId(): string|int
         {
-            return '0';
+            return '0'; 
         }
 
         /**
@@ -819,7 +862,7 @@ namespace {
          */
         final public function getActivePlayerName(): string
         {
-            return '';
+            return ''; 
         }
 
         /**
@@ -913,6 +956,7 @@ namespace {
         /**
          * Returns the value of a user preference for a player. It will return the value currently selected in the
          * select combo box, in the top-right menu.
+         * @deprecated use $this->userPreferences->get(int $playerId, int $prefId)
          */
         final public function getGameUserPreference(int $playerId, int $prefId): ?int
         {
@@ -1138,6 +1182,7 @@ namespace {
 
         /**
          * Returns true if game is turn based, false if it is realtime
+         * @deprecated use $this->tableOptions->isTurnBased()
          */
         final public function isAsync(): bool
         {
@@ -1146,6 +1191,7 @@ namespace {
 
         /**
          * Returns true if game is realtime, false if it is async.
+         * @deprecated use $this->tableOptions->isRealTime()
          */
         final public function isRealtime(): bool
         {
@@ -1369,7 +1415,7 @@ namespace {
          * Translation function using appropriate gettext domain.
          */
         protected function _(string $text): string
-        {
+        {            
             return '';
         }
 
@@ -1524,7 +1570,7 @@ namespace {
         protected function getNew(string $objectName): mixed {
             return null;
         }
-
+    
         /**
          * Apply an SQL upgrade of the tables.
          * Use DBPREFIX_<table_name> for all tables in the $sql parameter.
@@ -1542,7 +1588,7 @@ namespace {
         /**
          * Return the BGA environment this table is running on.
          * This should be used for debug purpose only.
-         *
+         * 
          * @return string "studio" or "prod"
          */
         static function getBgaEnvironment(): string {
@@ -1728,7 +1774,7 @@ namespace {
     class Deck
     {
         var $autoreshuffle;
-        var $autoreshuffle_trigger;
+        var $autoreshuffle_trigger; 
 
         /**
          * Set the databasetable name.
@@ -1740,7 +1786,7 @@ namespace {
          * This is the way cards are created and should not be called during the game.
          * Cards are added to the deck (not shuffled)
          * Cards is an array of "card types" with at least the followin fields:
-         * array(
+         * array( 
          *      array(                              // This is my first card type
          *          "type" => "name of this type"   // Note: <10 caracters
          *          "type_arg" => <type arg>        // Argument that should be applied to all card of this card type
@@ -1749,7 +1795,7 @@ namespace {
          * If location_arg is not specified, cards are placed at location extreme position
          */
         function createCards(array $cards, string $location = 'deck', ?int $location_arg = null) {}
-
+        
         /**
          * Get position of extreme cards (top or back) on the specific location.
          */
@@ -1757,14 +1803,14 @@ namespace {
         {
             return false;
         }
-
+        
         /**
          * Shuffle cards of a specified location.
          */
         function shuffle(string $location)
         {
         }
-
+        
         /**
          * Pick the first card on top of specified deck and give it to specified player.
          * Return card infos or null if no card in the specified location.
@@ -1773,7 +1819,7 @@ namespace {
         {
             return [];
         }
-
+        
         /**
          * Pick the "nbr" first cards on top of specified deck and give it to specified player.
          * Return card infos (array) or null if no card in the specified location.
@@ -1800,7 +1846,7 @@ namespace {
         {
             return [];
         }
-
+        
         /**
          * Return card on top of this location.
          */
@@ -1816,7 +1862,7 @@ namespace {
         {
             return [];
         }
-
+        
         /**
          * Move a card to specific location.
          */
@@ -1830,7 +1876,7 @@ namespace {
         function moveCards(array $cards, string $location, int $location_arg=0): void
         {
         }
-
+        
         /**
          * Move a card to a specific location where card are ordered. If location_arg place is already taken, increment
          * all cards after location_arg in order to insert new card at this precise location.
@@ -1862,7 +1908,7 @@ namespace {
         function moveAllCardsInLocationKeepOrder(string $from_location, string $to_location): void
         {
         }
-
+        
         /**
          * Return all cards in specific location.
          * note: if "order by" is used, result object is NOT indexed by card ids
@@ -1871,32 +1917,32 @@ namespace {
         {
             return [];
         }
-
+        
         /**
          * Get all cards in given player hand.
-         * Note: This is an alias for: getCardsInLocation( "hand", $player_id )
+         * Note: This is an alias for: getCardsInLocation( "hand", $player_id ) 
          */
         function getPlayerHand(int $player_id): array
         {
             return [];
         }
-
+        
         /**
          * Get specific card infos
-         */
+         */ 
         function getCard(int $card_id ): ?array
         {
             return [];
         }
-
+        
         /**
          * Get specific cards infos
-         */
+         */ 
         function getCards(array $cards_array ): array
         {
             return [];
         }
-
+        
         /**
          * Get cards from their IDs (same as getCards), but with a location specified. Raises an exception if the cards are not in the specified location.
          */
@@ -1904,7 +1950,7 @@ namespace {
         {
             return [];
         }
-
+        
         /**
          * Get card of a specific type.
          */
@@ -1912,7 +1958,7 @@ namespace {
         {
             return [];
         }
-
+        
         /**
          * Get cards of a specific type in a specific location.
          */
@@ -1920,30 +1966,30 @@ namespace {
         {
             return [];
         }
-
+        
         /**
          * Move a card to discard pile.
          */
         function playCard(int $card_id): void
         {
         }
-
+        
         /**
-         * Return the number of cards in specified location.
+         * Return the number of cards in specified location. 
          */
         function countCardInLocation(string $location, ?int $location_arg=null): int|string
         {
             return '0';
         }
-
+        
         /**
-         * Return the number of cards in specified location.
+         * Return the number of cards in specified location. 
          */
         function countCardsInLocation(string $location, ?int $location_arg=null): int|string
         {
             return '0';
         }
-
+        
         /**
          * Return an array "location" => number of cards.
          */
@@ -1951,7 +1997,7 @@ namespace {
         {
             return [];
         }
-
+        
         /**
          * Return an array "location_arg" => number of cards (for this location).
          */

@@ -18,7 +18,7 @@ declare(strict_types=1);
 
 namespace Bga\Games\ZeroDown;
 
-require_once(APP_GAMEMODULE_PATH . "module/table/table.game.php");
+require_once(APP_GAMEMODULE_PATH . 'module/table/table.game.php');
 
 class Game extends \Table
 {
@@ -28,9 +28,10 @@ class Game extends \Table
     private const NUMBER_OF_CARDS_OF_SAME_TYPE_THAT_PRODUCE_0 = 5;
 
     private const GAME_STATE_CURRENT_ROUND = 'currentRound';
+    private const GAME_STATE_HOW_MANY_KNOCKING = 'howManyKnockings';
     private const GAME_STATE_SECOND_KNOCKING_PLAYER_ID = 'secondKnockingPlayerId';
 
-    private const GAME_OPTION_HOW_MANY_ROUNDS = 'howManyRounds';
+    private const GAME_OPTION_HOW_MANY_ROUNDS = 100;
 
     private const CARD_LOCATION_DECK = 'deck';
     private const CARD_LOCATION_PLAYER_HAND = 'hand';
@@ -61,8 +62,8 @@ class Game extends \Table
         // Note: afterwards, you can get/set the global variables with getGameStateValue/setGameStateInitialValue/setGameStateValue
         $this->initGameStateLabels([
             self::GAME_STATE_CURRENT_ROUND => 10,
-            self::GAME_STATE_SECOND_KNOCKING_PLAYER_ID => 20,
-            self::GAME_OPTION_HOW_MANY_ROUNDS => 100,
+            self::GAME_STATE_HOW_MANY_KNOCKING => 20,
+            self::GAME_STATE_SECOND_KNOCKING_PLAYER_ID => 22,
         ]);
 
         $this->deck = $this->getNew('module.common.deck');
@@ -84,7 +85,7 @@ class Game extends \Table
 
         // Create players
         // Note: if you added some extra field on "player" table in the database (dbmodel.sql), you can initialized it there.
-        $sql = "INSERT INTO player (player_id, player_color, player_canal, player_name, player_avatar) VALUES ";
+        $sql = 'INSERT INTO player (player_id, player_color, player_canal, player_name, player_avatar) VALUES ';
         $values = [];
         foreach ($players as $player_id => $player) {
             $color = array_shift($default_colors);
@@ -99,7 +100,8 @@ class Game extends \Table
 
         // Init global values with their initial values
         $this->setGameStateValue(self::GAME_STATE_CURRENT_ROUND, 0);
-        $this->setGameStateValue(self::GAME_STATE_SECOND_KNOCKING_PLAYER_ID, 0);
+        $this->setGameStateValue(self::GAME_STATE_HOW_MANY_KNOCKING, 0);
+        $this->setGameStateValue(self::GAME_STATE_SECOND_KNOCKING_PLAYER_ID, -1);
 
         // Init game statistics
         // (note: statistics must be defined in stats.json)
@@ -178,49 +180,88 @@ class Game extends \Table
 //////////// Player actions
 ////////////////////////////////////////////////////////////////////////////
 
-    public function actSwapCard(int $cardId): void
+    public function actSwapCard(int $playedPlayerCardId, int $playedTableCardId): void
     {
-        $this->checkAction('actSwapCard');
-
-        // Retrieve the active player ID.
-        $playerId = (int)$this->getActivePlayerId();
-
-        // check input values
-        $args = $this->argPlayerTurn();
-        $playableCardsIds = $args['playableCardsIds'];
-        if (!in_array($cardId, $playableCardsIds)) {
-            throw new \BgaUserException('Invalid card choice');
+        // make sure the player card is in player's hand
+        $currentPlayerId = (int) $this->getCurrentPlayerId();
+        $currentPlayerCards = $this->fromBgaCardsToCards(
+            $this->deck->getCardsInLocation(self::CARD_LOCATION_PLAYER_HAND, $currentPlayerId)
+        );
+        $playedPlayerCard = null;
+        foreach ($currentPlayerCards as $playerCard) {
+            if ($playerCard->getId() === $playedPlayerCardId) {
+                $playedPlayerCard = $playerCard;
+                break;
+            }
+        }
+        if ($playedPlayerCard === null) {
+            throw new \BgaUserException($this->_('You cannot use a card which is not in your hand.'));
         }
 
+        // make sure the table card is on the table
+        $currentTableCards = $this->fromBgaCardsToCards(
+            $this->deck->getCardsInLocation(self::CARD_LOCATION_TABLE)
+        );
+        $playedTableCard = null;
+        foreach ($currentTableCards as $tableCard) {
+            if ($tableCard->getId() === $playedTableCardId) {
+                $playedTableCard = $tableCard;
+                break;
+            }
+        }
+        if ($playedTableCard === null) {
+            throw new \BgaUserException($this->_('You cannot use a card which is not on the table.'));
+        }
 
-        // Notify all players about the card played.
-//        $this->notify->all("cardPlayed", clienttranslate('${player_name} plays ${card_name}'), [
-//            "player_id" => $player_id,
-//            "player_name" => $this->getActivePlayerName(), // remove this line if you uncomment notification decorator
-//            "card_name" => $card_name, // remove this line if you uncomment notification decorator
-//            "card_id" => $card_id,
-//            "i18n" => ['card_name'], // remove this line if you uncomment notification decorator
-//        ]);
+        // swap cards
+        $newCurrentPlayerCards = $this->swapCard($playedPlayerCard, $playedTableCard, $currentPlayerId, $currentPlayerCards);
+        $this->notify->all('cardSwapped', clienttranslate('${player_name} replaced the card ${tableCardImage} with ${playerCardImage}'), [
+            'playerId' => $currentPlayerId,
+            'playerCard' => $formattedPlayerCard = $this->formatCardForClient($playedPlayerCard),
+            'tableCard' => $formattedTableCard = $this->formatCardForClient($playedTableCard),
+            'playerCardImage' => $formattedPlayerCard,
+            'tableCardImage' => $formattedTableCard,
+            'player_name' => $currentPlayerName = $this->getCurrentPlayerName(),
+        ]);
 
-        // at the end of the action, move to the next state
-        $this->gamestate->nextState("playCard");
+        // check if current player has achieved ZERO after this swap
+        if ($this->getPointsForCards($newCurrentPlayerCards) === 0) {
+            $this->notify->all('zeroAchieved', clienttranslate('${player_name} has achieved a Zero!'), [
+                'playerId' => $currentPlayerId,
+                'player_name' => $currentPlayerName,
+            ]);
+
+            $this->gamestate->nextState('endRound');
+            return;
+        }
+
+        $this->gamestate->nextState('nextPlayer');
     }
 
     public function actKnock(): void
     {
-        $this->checkAction('actKnock');
+        $currentPlayerId = (int) $this->getActivePlayerId();
 
-        // Retrieve the active player ID.
-        $player_id = (int)$this->getActivePlayerId();
+        $howManyKnockings = (int) $this->getGameStateValue(self::GAME_STATE_HOW_MANY_KNOCKING);
+        $howManyKnockings += 1;
+        $this->setGameStateValue(self::GAME_STATE_HOW_MANY_KNOCKING, $howManyKnockings);
 
-        // Notify all players about the choice to pass.
-        $this->notify->all("knock", clienttranslate('${player_name} passes'), [
-            "player_id" => $player_id,
-            "player_name" => $this->getActivePlayerName(),
-        ]);
+        // check if this is the second knocking
+        if ($howManyKnockings === 2) {
+            $this->setGameStateValue(self::GAME_STATE_SECOND_KNOCKING_PLAYER_ID, $currentPlayerId);
+            $this->notify->all('secondKnocked', clienttranslate('${player_name} knocked, starting the '), [
+                'playerId' => $currentPlayerId,
+                'player_name' => $this->getActivePlayerName(),
+            ]);
+        } else {
+            $this->notify->all('knocked', clienttranslate('${player_name} knocked'), [
+                'playerId' => $currentPlayerId,
+                'player_name' => $this->getActivePlayerName(),
+            ]);
 
-        // at the end of the action, move to the next state
-        $this->gamestate->nextState("knock");
+        }
+
+        $this->gamestate->nextState('nextPlayer');
     }
 
 ////////////////////////////////////////////////////////////////////////////
@@ -229,10 +270,8 @@ class Game extends \Table
 
     public function argPlayerTurn(): array
     {
-        // Get some values from the current game situation from the database.
-
         return [
-            "playableCardsIds" => [1, 2],
+            'activePlayerId' => (int) $this->getActivePlayerId(),
         ];
     }
 
@@ -268,7 +307,7 @@ class Game extends \Table
 
         // deal cards on the table
         $cards = $this->fromBgaCardsToCards(
-            $this->deck->pickCards(
+            $this->deck->pickCardsForLocation(
                 $this->is2PlayersMode($players) ? self::NUMBER_OF_CARDS_TO_DEAL_ON_THE_TABLE_IN_2_PLAYERS_MODE : self::NUMBER_OF_CARDS_TO_DEAL_ON_THE_TABLE,
                 self::CARD_LOCATION_DECK,
                 self::CARD_LOCATION_TABLE
@@ -289,24 +328,30 @@ class Game extends \Table
     }
 
     public function stActivateNextPlayer(): void {
-        // Retrieve the active player ID.
-        $player_id = (int)$this->getActivePlayerId();
+        // give extra time to the player who played
+        $previousPlayerId = (int) $this->getActivePlayerId();
+        $this->giveExtraTime($previousPlayerId);
 
-        // Give some extra time to the active player when he completed an action
-        $this->giveExtraTime($player_id);
+        // activate next player
+        $newPlayerId = (int) $this->activeNextPlayer();
 
-        // Activate next player
-        $this->activeNextPlayer();
+        // check if the second knocking player is the next player
+        $secondKnockingPlayerId = (int) $this->getGameStateValue(self::GAME_STATE_SECOND_KNOCKING_PLAYER_ID);
+        if ($newPlayerId === $secondKnockingPlayerId) {
+            $this->gamestate->nextState('endRound');
+            return;
+        }
 
-        // Go to another gamestate
-        $this->gamestate->nextState("playerTurn");
+        $this->gamestate->nextState('playerTurn');
     }
 
     function stEndRound() {
-        // update players score
         $players = $this->getPlayersFromDatabase();
         $currentRound = (int) $this->getGameStateValue(self::GAME_STATE_CURRENT_ROUND);
+        $howManyRounds = $this->getHowManyRounds($players);
+        $isGameOver = $currentRound >= $howManyRounds;
 
+        // update players score
         $lastNumberOfPointsByPlayerId = [];
         foreach ($players as $k => $player) {
             $points = $this->getPointsForCards(
@@ -314,14 +359,20 @@ class Game extends \Table
             );
             $lastNumberOfPointsByPlayerId[$player->getId()] = $points;
             $players[$k] = $player->addPoints($points);
+            $this->DbQuery(sprintf(
+                'UPDATE player SET player_score=%s WHERE player_id=%s',
+                $player->getScore(),
+                $player->getId()
+            ));
         }
 
+        // notify players that the round ends
         $this->notify->all('roundEnded', clienttranslate('Round #${currentRound} ends'), [
             'currentRound' => $currentRound,
             'players' => $this->formatPlayersForClient($players),
         ]);
 
-        // notify points earned by each player
+        // notify players about points won
         $translatedMessageForPoints = clienttranslate('${player_name} wins ${points} point(s)');
         $translatedMessageForNoPoints = clienttranslate('${player_name} does not get any point');
         foreach ($players as $player) {
@@ -330,9 +381,6 @@ class Game extends \Table
                 'points' => $lastNumberOfPointsByPlayerId[$player->getId()],
             ]);
         }
-
-        $howManyRounds = $this->getHowManyRounds($players);
-        $isGameOver = $currentRound >= $howManyRounds;
 
         // use "Scoring dialogs" to recap scoring for end-users before moving forward
         // @see https://en.doc.boardgamearena.com/Game_interface_logic:_yourgamename.js#Scoring_dialogs
@@ -387,6 +435,49 @@ class Game extends \Table
             'closing' => $isGameOver ? clienttranslate('End of game') : clienttranslate('Next round')
         ]);
 
+        // update number of rounds won stats for the players who have the lowest points
+        $minPointsInThisRound = 1000;
+        foreach ($players as $player) {
+            if ($lastNumberOfPointsByPlayerId[$player->getId()] < $minPointsInThisRound) {
+                $minPointsInThisRound = $lastNumberOfPointsByPlayerId[$player->getId()];
+            }
+        }
+        foreach ($players as $player) {
+            if ($lastNumberOfPointsByPlayerId[$player->getId()] === $minPointsInThisRound) {
+                $this->incStat(1, 'numberOfRoundsWon', $player->getId());
+            }
+        }
+
+        // update players min/max points in round stats
+        foreach ($players as $player) {
+            $minPointsInRoundEarnedByPlayer = $this->getStat('minPointsInRound', $player->getId());
+            if ($lastNumberOfPointsByPlayerId[$player->getId()] < $minPointsInRoundEarnedByPlayer) {
+                $this->setStat($lastNumberOfPointsByPlayerId[$player->getId()], 'minPointsInRound', $player->getId());
+            }
+            $maxPointsInRoundEarnedByPlayer = $this->getStat('maxPointsInRound', $player->getId());
+            if ($lastNumberOfPointsByPlayerId[$player->getId()] > $maxPointsInRoundEarnedByPlayer) {
+                $this->setStat($lastNumberOfPointsByPlayerId[$player->getId()], 'maxPointsInRound', $player->getId());
+            }
+        }
+
+        if ($isGameOver) {
+            // update global min/max points in round stats
+            $minPointsInRoundEarnedGlobally = 1000;
+            $maxPointsInRoundEarnedGlobally = 0;
+            foreach ($players as $player) {
+                $minPointsInRoundEarnedByPlayer = $this->getStat('minPointsInRound', $player->getId());
+                if ($minPointsInRoundEarnedByPlayer < $minPointsInRoundEarnedGlobally) {
+                    $minPointsInRoundEarnedGlobally = $minPointsInRoundEarnedByPlayer;
+                }
+                $maxPointsInRoundEarnedByPlayer = $this->getStat('maxPointsInRound', $player->getId());
+                if ($maxPointsInRoundEarnedByPlayer > $maxPointsInRoundEarnedGlobally) {
+                    $maxPointsInRoundEarnedGlobally = $maxPointsInRoundEarnedByPlayer;
+                }
+            }
+            $this->setStat($minPointsInRoundEarnedGlobally, 'minPointsInRound');
+            $this->setStat($maxPointsInRoundEarnedGlobally, 'maxPointsInRound');
+        }
+
         // go to next round or end the game
         $this->gamestate->nextState($isGameOver ? 'endGame' : 'nextRound');
     }
@@ -397,10 +488,10 @@ class Game extends \Table
 
     protected function zombieTurn(array $state, int $active_player): void
     {
-        $state_name = $state["name"];
+        $state_name = $state['name'];
 
-        if ($state["type"] === "activeplayer") {
-            $this->gamestate->nextState("zombiePass");
+        if ($state['type'] === 'activeplayer') {
+            $this->gamestate->nextState('zombiePass');
             return;
         }
 
@@ -513,14 +604,11 @@ class Game extends \Table
     }
 
     private function getHowManyRounds(array $players = null): int {
-        $howManyRounds = (int) $this->getGameStateValue(self::GAME_OPTION_HOW_MANY_ROUNDS);
+        $howManyRounds = $this->tableOptions->get(self::GAME_OPTION_HOW_MANY_ROUNDS);
 
         // support "As many as players" option
         if ($howManyRounds < 1) {
-            if ($players === null) {
-                $players = $this->getPlayersFromDatabase();
-            }
-            $howManyRounds = count($players);
+            $howManyRounds = count($players ?? $this->getPlayersFromDatabase());
         }
 
         return $howManyRounds;
@@ -531,13 +619,17 @@ class Game extends \Table
      */
     private function formatCardsForClient(array $cards): array {
         return array_map(
-            fn (Card $card) => [
-                'id' => $card->getId(),
-                'color' => $card->getColor(),
-                'value' => $card->getValue(),
-            ],
+            fn (Card $card) => $this->formatCardForClient($card),
             $cards
         );
+    }
+
+    private function formatCardForClient(Card $card): array {
+        return [
+            'id' => $card->getId(),
+            'color' => $card->getColor(),
+            'value' => $card->getValue(),
+        ];
     }
 
     /**
@@ -605,5 +697,31 @@ class Game extends \Table
         }
 
         return $points;
+    }
+
+    /**
+     * @param Card $playedPlayerCard
+     * @param Card $playedTableCard
+     * @param int $currentPlayerId
+     * @param Card[] $currentPlayerCards
+     * @return Card[] $newPlayerCards
+     */
+    private function swapCard(Card $playedPlayerCard, Card $playedTableCard, int $currentPlayerId, array $currentPlayerCards): array {
+        $newPlayerCards = [];
+
+        // swap cards locally to compute $newPlayerCards
+        foreach ($currentPlayerCards as $card) {
+            if ($card->getId() === $playedPlayerCard->getId()) {
+                $newPlayerCards[] = $playedTableCard;
+            } else {
+                $newPlayerCards[] = $card;
+            }
+        }
+
+        // swap cards in database
+        $this->deck->moveCards($playedPlayerCard->getId(), self::CARD_LOCATION_TABLE);
+        $this->deck->moveCards($playedTableCard->getId(), self::CARD_LOCATION_PLAYER_HAND, $currentPlayerId);
+
+        return $newPlayerCards;
     }
 }

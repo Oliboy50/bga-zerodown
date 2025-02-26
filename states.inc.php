@@ -94,6 +94,7 @@ $machinestates = [
         'action' => 'stActivateNextPlayer',
         'transitions' => [
             'playerTurn' => ST_PLAYER_TURN,
+            'endRound' => ST_END_ROUND,
         ],
     ],
 
