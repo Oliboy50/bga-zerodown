@@ -1,6 +1,22 @@
 # bga-zerodown
 
-> Board Game Arena adaptation of a card game named ZeroDown (or Zero, or CatAssTrophy)
+> Board Game Arena adaptation of the card game ZeroDown (aka. Zero, aka. CatAssTrophy)
+
+## Reminders
+
+### Create sprite of cards
+
+1. Install `inkscape` CLI ([included in the GUI](https://inkscape.org/release))
+1. Install `magick` CLI (for Mac: `brew install imagemagick`)
+1. Create *.png images from *.svg files:
+   ```shell
+   inkscape -w 150 -h 232 --export-type="png" $(ls *.svg)
+   ```
+1. Create cards.png sprite from *.png images:
+   ```shell
+   magick montage $(ls *_blue_*.png) $(ls *_brown_*.png) $(ls *_gray_*.png) $(ls *_green_*.png) $(ls *_pink_*.png) $(ls *_red_*.png) $(ls *_yellow_*.png) $(ls *_back.png) -tile 8x8 -geometry +0+0 -mode concatenate -background none oliboy50_cards.png
+   ```
+1. Reduce production images size by ~90% (using https://tinypng.com or https://compresspng.com if the file is too large)
 
 ## License
 

@@ -45,24 +45,165 @@
 
 /* Note: you must not use any @import directive */
 
+/**
+Override BGA elements style
+ */
+/* Make sure BGA elements are placed on top of the game ones */
+#page-title,
+#log_history_status,
+#maingameview_menuheader {
+    z-index: 97;
+}
+/* BGA results table */
+.tableWindow table {
+    width: 100%;
+}
+.tableWindow table th {
+    text-align: center;
+}
+.tableWindow table tr:last-child td {
+    border-bottom: none;
+    text-transform: uppercase;
+    font-weight: bold;
+}
+/**
+END Override BGA elements style
+ */
 
-/********* You can start writing your CSS below this line: **********/
+/**
+Board
+ */
+#board {
+    position: relative;
+    /*display: flex;*/
+    /*align-items: center;*/
+    /*justify-content: center;*/
+    min-width: 740px;
+}
+/**
+END Board
+ */
 
+/**
+Players and table cards
+ */
+#other-players-wrapper {
+    display: flex;
+    flex-wrap: wrap;
+    align-content: space-between;
+    align-items: center;
+    justify-content: space-around;
+    flex-direction: row;
+    z-index: 0;
+}
+#table-cards-wrapper {
+    z-index: 10;
+}
+#my-hand-wrapper {
+    z-index: 20;
+}
+.spectatorMode #my-hand-wrapper {
+    display: none;
+}
+.cards-wrapper {
+    position: relative;
+    padding-left: 0; /* fix stock component centerItems bug */
+}
+.cards-title-wrapper {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    align-content: center;
+    justify-content: space-between;
+    align-items: center;
+    padding-left: 10px;
+}
+#other-players-wrapper .cards-title-wrapper {
+    justify-content: center;
+}
+.cards-title-wrapper-left {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    align-content: center;
+    align-items: center;
+}
+.cards-title-wrapper-right {
+    display: flex;
+    flex-direction: column;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-content: center;
+    align-items: center;
+    text-transform: uppercase;
+}
+.cards-title {
+    margin-left: 5px;
+}
+#current-round,
+#my-hand-current-value {
+    font-size: 1.5em;
+}
+#toggle-sort-button {
+    margin-left: 10px;
+}
+.cards-wrapper .stockitem {
+    border-radius: 10px;
+    margin: 5px;
+    border: 1px solid grey;
+}
+#table-cards-wrapper .stockitem:hover,
+#my-hand-wrapper .stockitem:hover {
+    cursor: pointer;
+    margin: 4px;
+    border: 2px solid black !important;
+}
+.cards-wrapper .stockitem_selected {
+    margin: 3px;
+    transform: scale(1.02);
+    border: 2px solid black !important;
+    box-shadow: 1px 1px 5px black, 2px 2px 4px black;
+}
+.player-table {
+    text-align: center;
+    z-index: 0;
+}
+.player-table-name span {
+    background: rgba(255, 255, 255, 0.9);
+}
+.player-table.active .player-table-name span {
+    border: 2px solid;
+}
+/**
+END Players
+ */
 
-/*
-    Example of CSS sprites (a black token and a white token, 20x20px each, embedded in the same "tokens.png" 40x20px image):
+/**
+Card
+ */
+.card {
+    width: 75px;
+    height: 116px;
+    border-radius: 10px;
+    background-image: url('img/oliboy50_cards.png'); /* background-position is dynamically computed */
+    background-size: 600px 928px; /* width = cardWidth * number of columns in sprite ; height = cardHeight * number of rows in sprite */
+}
+.card.back-side {
+    background-position: 0 -700%; /* sprite: column 1 ; row 8  */
+}
+/**
+END Cards
+ */
 
-    .white_token {
-        background-image: url('img/tokens.png');
-        background-position: 0px 0px;
-    }
-    .black_token {
-        background-image: url('img/tokens.png');
-        background-position: -20px 0px;
-    }
-    .token {
-        width: 20px;
-        height: 20px;
-        background-repeat: none;
-    }
-*/
+/**
+Log HTML
+ */
+.log .card {
+    display: inline-block;
+    vertical-align: bottom;
+    border-radius: 0;
+}
+/**
+END Log HTML
+ */

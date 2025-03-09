@@ -42,9 +42,9 @@ class Player
     /*
      *  SETTERS
      */
-    public function addPoints(int $points): self
+    public function removePoints(int $points): self
     {
-        $this->score = $this->score + $points;
+        $this->score = $this->score - $points;
 
         return $this;
     }

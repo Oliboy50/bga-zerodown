@@ -33,6 +33,10 @@ class Game extends \Table
 
     private const GAME_OPTION_HOW_MANY_ROUNDS = 100;
 
+    private const GAME_STATS_NUMBER_OF_ROUNDS_WON = 'numberOfRoundsWon';
+    private const GAME_STATS_MIN_POINTS_LOST_IN_ROUND = 'minPointsInRound';
+    private const GAME_STATS_MAX_POINTS_LOST_IN_ROUND = 'maxPointsInRound';
+
     private const CARD_LOCATION_DECK = 'deck';
     private const CARD_LOCATION_PLAYER_HAND = 'hand';
     private const CARD_LOCATION_TABLE = 'table';
@@ -106,12 +110,12 @@ class Game extends \Table
         // Init game statistics
         // (note: statistics must be defined in stats.json)
         // Table statistics
-        $this->initStat('table', 'minPointsInRound', 0);
-        $this->initStat('table', 'maxPointsInRound', 0);
+        $this->initStat('table', self::GAME_STATS_MIN_POINTS_LOST_IN_ROUND, 0);
+        $this->initStat('table', self::GAME_STATS_MAX_POINTS_LOST_IN_ROUND, 0);
         // Player statistics (init for all players at once)
-        $this->initStat('player', 'numberOfRoundsWon', 0);
-        $this->initStat('player', 'minPointsInRound', 0);
-        $this->initStat('player', 'maxPointsInRound', 0);
+        $this->initStat('player', self::GAME_STATS_NUMBER_OF_ROUNDS_WON, 0);
+        $this->initStat('player', self::GAME_STATS_MIN_POINTS_LOST_IN_ROUND, 0);
+        $this->initStat('player', self::GAME_STATS_MAX_POINTS_LOST_IN_ROUND, 0);
 
         // Create cards
         $cards = [];
@@ -148,7 +152,6 @@ class Game extends \Table
     {
         $result = [];
         $currentPlayerId = (int) $this->getCurrentPlayerId();
-        $activePlayerId = (int) $this->getActivePlayerId();
         $players = $this->getPlayersFromDatabase();
 
         // Rounds
@@ -158,9 +161,11 @@ class Game extends \Table
         // Players
         $result['players'] = $this->formatPlayersForClient($players);
         $result['currentPlayerId'] = $currentPlayerId;
-        $result['activePlayerId'] = $activePlayerId;
 
         // Cards
+        $result['tableCards'] = $this->formatCardsForClient(
+            $this->fromBgaCardsToCards($this->deck->getCardsInLocation(self::CARD_LOCATION_TABLE))
+        );
         $result['currentPlayerCards'] = $this->formatCardsForClient(
             $this->fromBgaCardsToCards($this->deck->getCardsInLocation(self::CARD_LOCATION_PLAYER_HAND, $currentPlayerId))
         );
@@ -321,7 +326,6 @@ class Game extends \Table
 
         $this->notify->all('roundStarted', clienttranslate('Round #${currentRound} starts'), [
             'currentRound' => $newRound,
-            'players' => $this->formatPlayersForClient($players),
         ]);
 
         $this->gamestate->nextState('playerTurn');
@@ -358,7 +362,7 @@ class Game extends \Table
                 $this->fromBgaCardsToCards($this->deck->getCardsInLocation(self::CARD_LOCATION_PLAYER_HAND, $player->getId()))
             );
             $lastNumberOfPointsByPlayerId[$player->getId()] = $points;
-            $players[$k] = $player->addPoints($points);
+            $players[$k] = $player->removePoints($points);
             $this->DbQuery(sprintf(
                 'UPDATE player SET player_score=%s WHERE player_id=%s',
                 $player->getScore(),
@@ -373,8 +377,8 @@ class Game extends \Table
         ]);
 
         // notify players about points won
-        $translatedMessageForPoints = clienttranslate('${player_name} wins ${points} point(s)');
-        $translatedMessageForNoPoints = clienttranslate('${player_name} does not get any point');
+        $translatedMessageForPoints = clienttranslate('${player_name} loses ${points} point(s)');
+        $translatedMessageForNoPoints = clienttranslate('${player_name} does not lose any point');
         foreach ($players as $player) {
             $this->notify->all('pointsWon', ($lastNumberOfPointsByPlayerId[$player->getId()] > 0) ? $translatedMessageForPoints : $translatedMessageForNoPoints, [
                 'player_name' => $player->getName(),
@@ -413,8 +417,8 @@ class Game extends \Table
                 ],
                 'type' => 'header'
             ];
-            $previousPoints[] = $player->getScore() - $lastNumberOfPointsByPlayerId[$player->getId()];
-            $roundPoints[] = $lastNumberOfPointsByPlayerId[$player->getId()] === 0 ? '0' : sprintf('+%s', $lastNumberOfPointsByPlayerId[$player->getId()]);
+            $previousPoints[] = $player->getScore() + $lastNumberOfPointsByPlayerId[$player->getId()];
+            $roundPoints[] = $lastNumberOfPointsByPlayerId[$player->getId()] === 0 ? '0' : sprintf('-%s', $lastNumberOfPointsByPlayerId[$player->getId()]);
             $totalPoints[] = $player->getScore();
         }
         $this->notify->all('tableWindow', '', [
@@ -444,38 +448,41 @@ class Game extends \Table
         }
         foreach ($players as $player) {
             if ($lastNumberOfPointsByPlayerId[$player->getId()] === $minPointsInThisRound) {
-                $this->incStat(1, 'numberOfRoundsWon', $player->getId());
+                $this->incStat(1, self::GAME_STATS_NUMBER_OF_ROUNDS_WON, $player->getId());
             }
         }
 
         // update players min/max points in round stats
         foreach ($players as $player) {
-            $minPointsInRoundEarnedByPlayer = $this->getStat('minPointsInRound', $player->getId());
-            if ($lastNumberOfPointsByPlayerId[$player->getId()] < $minPointsInRoundEarnedByPlayer) {
-                $this->setStat($lastNumberOfPointsByPlayerId[$player->getId()], 'minPointsInRound', $player->getId());
+            $minPointsInRoundLostByPlayer = $this->getStat(self::GAME_STATS_MIN_POINTS_LOST_IN_ROUND, $player->getId());
+            if (
+                !$minPointsInRoundLostByPlayer
+                || $lastNumberOfPointsByPlayerId[$player->getId()] < $minPointsInRoundLostByPlayer
+            ) {
+                $this->setStat($lastNumberOfPointsByPlayerId[$player->getId()], self::GAME_STATS_MIN_POINTS_LOST_IN_ROUND, $player->getId());
             }
-            $maxPointsInRoundEarnedByPlayer = $this->getStat('maxPointsInRound', $player->getId());
-            if ($lastNumberOfPointsByPlayerId[$player->getId()] > $maxPointsInRoundEarnedByPlayer) {
-                $this->setStat($lastNumberOfPointsByPlayerId[$player->getId()], 'maxPointsInRound', $player->getId());
+            $maxPointsInRoundLostByPlayer = $this->getStat(self::GAME_STATS_MAX_POINTS_LOST_IN_ROUND, $player->getId());
+            if ($lastNumberOfPointsByPlayerId[$player->getId()] > $maxPointsInRoundLostByPlayer) {
+                $this->setStat($lastNumberOfPointsByPlayerId[$player->getId()], self::GAME_STATS_MAX_POINTS_LOST_IN_ROUND, $player->getId());
             }
         }
 
         if ($isGameOver) {
             // update global min/max points in round stats
-            $minPointsInRoundEarnedGlobally = 1000;
-            $maxPointsInRoundEarnedGlobally = 0;
+            $minPointsInRoundLostGlobally = 1000;
+            $maxPointsInRoundLostGlobally = 0;
             foreach ($players as $player) {
-                $minPointsInRoundEarnedByPlayer = $this->getStat('minPointsInRound', $player->getId());
-                if ($minPointsInRoundEarnedByPlayer < $minPointsInRoundEarnedGlobally) {
-                    $minPointsInRoundEarnedGlobally = $minPointsInRoundEarnedByPlayer;
+                $minPointsInRoundLostByPlayer = $this->getStat(self::GAME_STATS_MIN_POINTS_LOST_IN_ROUND, $player->getId());
+                if ($minPointsInRoundLostByPlayer < $minPointsInRoundLostGlobally) {
+                    $minPointsInRoundLostGlobally = $minPointsInRoundLostByPlayer;
                 }
-                $maxPointsInRoundEarnedByPlayer = $this->getStat('maxPointsInRound', $player->getId());
-                if ($maxPointsInRoundEarnedByPlayer > $maxPointsInRoundEarnedGlobally) {
-                    $maxPointsInRoundEarnedGlobally = $maxPointsInRoundEarnedByPlayer;
+                $maxPointsInRoundLostByPlayer = $this->getStat(self::GAME_STATS_MAX_POINTS_LOST_IN_ROUND, $player->getId());
+                if ($maxPointsInRoundLostByPlayer > $maxPointsInRoundLostGlobally) {
+                    $maxPointsInRoundLostGlobally = $maxPointsInRoundLostByPlayer;
                 }
             }
-            $this->setStat($minPointsInRoundEarnedGlobally, 'minPointsInRound');
-            $this->setStat($maxPointsInRoundEarnedGlobally, 'maxPointsInRound');
+            $this->setStat($minPointsInRoundLostGlobally, self::GAME_STATS_MIN_POINTS_LOST_IN_ROUND);
+            $this->setStat($maxPointsInRoundLostGlobally, self::GAME_STATS_MAX_POINTS_LOST_IN_ROUND);
         }
 
         // go to next round or end the game

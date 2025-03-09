@@ -2,12 +2,12 @@
     "table": {
         "minPointsInRound": {
             "id": 13,
-            "name": "Minimum points earned in a round",
+            "name": "Minimum points lost in a round",
             "type": "int"
         },
         "maxPointsInRound": {
             "id": 14,
-            "name": "Maximum points earned in a round",
+            "name": "Maximum points lost in a round",
             "type": "int"
         }
     },
@@ -19,12 +19,12 @@
         },
         "minPointsInRound": {
             "id": 13,
-            "name": "Minimum points earned in a round",
+            "name": "Minimum points lost in a round",
             "type": "int"
         },
         "maxPointsInRound": {
             "id": 14,
-            "name": "Maximum points earned in a round",
+            "name": "Maximum points lost in a round",
             "type": "int"
         }
     }
