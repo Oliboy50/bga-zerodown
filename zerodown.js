@@ -16,6 +16,7 @@
  */
 
 // Cards color ID
+const COLOR_BACK = 0;
 const COLOR_BLUE = 10;
 const COLOR_BROWN = 20;
 const COLOR_GRAY = 30;
@@ -23,7 +24,6 @@ const COLOR_GREEN = 40;
 const COLOR_PINK = 50;
 const COLOR_RED = 60;
 const COLOR_YELLOW = 70;
-const COLOR_BACK = 80;
 
 // Cards value
 const VALUE_BACK = 0;
@@ -44,6 +44,8 @@ const NUMBER_OF_CARDS_OF_SAME_TYPE_THAT_PRODUCE_0 = 5;
 const CARDS_IMAGE_PATH = 'oliboy50_cards.png';
 const NUMBER_OF_COLUMNS_IN_CARDS_SPRITE = 8;
 const NUMBER_OF_ROWS_IN_CARDS_SPRITE = 8;
+const CARD_WIDTH = 75;
+const CARD_HEIGHT = 116;
 
 // DOM IDs
 const DOM_ID_APP = 'game_play_area';
@@ -57,8 +59,6 @@ const DOM_ID_PLAYER_HAND_TOGGLE_SORT_BUTTON_LABEL = 'toggle-sort-button-label';
 const DOM_ID_TABLE_CARDS_WRAPPER = 'table-cards-wrapper';
 const DOM_ID_TABLE_CARDS = 'table-cards';
 const DOM_ID_CURRENT_ROUND = 'current-round';
-const DOM_ID_ACTION_BUTTON_SWAP_CARDS = 'action-button-swap-cards';
-const DOM_ID_ACTION_BUTTON_KNOCK = 'action-button-knock';
 
 // DOM classes
 const DOM_CLASS_BGA_WHITEBLOCK = 'whiteblock';
@@ -77,10 +77,6 @@ const DOM_CLASS_CARD_BACK_SIDE = 'back-side';
 // Player hand sorting modes
 const PLAYER_HAND_SORT_BY_COLOR = 'color';
 const PLAYER_HAND_SORT_BY_VALUE = 'value';
-
-// Style
-const CARD_WIDTH = 75;
-const CARD_HEIGHT = 116;
 
 define([
     'dojo','dojo/_base/declare',
@@ -196,10 +192,16 @@ function (dojo, declare) {
         ///////////////////////////////////////////////////
         onEnteringState: function (stateName, data) {
             this.currentState = stateName;
+            this.tableCards.setSelectionMode(0);
+
             switch (stateName) {
                 case 'playerTurn':
                     const playerDomId = (this.isSpectator || this.player_id !== data.args.activePlayerId) ? `player-table-${data.args.activePlayerId}` : DOM_ID_PLAYER_HAND_WRAPPER;
                     dojo.addClass(playerDomId, DOM_CLASS_ACTIVE_PLAYER);
+
+                    if (this.isCurrentPlayerActive()) {
+                        this.tableCards.setSelectionMode(1);
+                    }
                     break;
             }
         },
@@ -218,8 +220,9 @@ function (dojo, declare) {
             this.currentState = stateName;
             switch (stateName) {
                 case 'playerTurn':
-                    this.addActionButton(DOM_ID_ACTION_BUTTON_SWAP_CARDS, _('Swap selected cards'), 'onSwapCards');
-                    this.addActionButton(DOM_ID_ACTION_BUTTON_KNOCK, _('Knock'), 'onKnock');
+                    this.statusBar.addActionButton(_('Knock'), () => this.bgaPerformAction('actKnock'), {
+                        color: 'secondary',
+                    });
                     break;
             }
         },
@@ -255,13 +258,23 @@ function (dojo, declare) {
          * @returns {string}
          */
         getLogHtmlForCard: function (card) {
-            // @TODO:
             const position = this.getCardPositionInSpriteByColorAndValue(card.color, card.value);
+            const backgroundX = this.getAbsoluteCardBackgroundPositionXFromCardPosition(position) + this.getLogHtmlBackgroundOffsetXForCard(card);
+            const backgroundY = this.getAbsoluteCardBackgroundPositionYFromCardPosition(position) + this.getLogHtmlBackgroundOffsetYForCard(card);
 
-            return `<div class="${DOM_CLASS_CARD} ${DOM_CLASS_CARD_FRONT_SIDE}" style="width: ${this.getLogHtmlWidthForCard(card)}px; height: 24px;"></div>`;
+            return `<div class="${DOM_CLASS_CARD} ${DOM_CLASS_CARD_FRONT_SIDE}" style="width: ${this.getLogHtmlWidthForCard(card)}px; height: ${this.getLogHtmlHeightForCard(card)}px; background-position: -${backgroundX}px -${backgroundY}px;"></div>`;
         },
-        getLogHtmlWidthForCard: function (card) {
-            return 17;
+        getLogHtmlWidthForCard: function (_card) {
+            return 10;
+        },
+        getLogHtmlHeightForCard: function (_card) {
+            return 28;
+        },
+        getLogHtmlBackgroundOffsetXForCard: function (_card) {
+            return 4;
+        },
+        getLogHtmlBackgroundOffsetYForCard: function (_card) {
+            return 4;
         },
         /**
          * Return true if:
@@ -303,6 +316,26 @@ function (dojo, declare) {
             });
         },
         /**
+         * @param {Object[]} players
+         * @returns {Object[]}
+         */
+        sortPlayersByTurnOrderPosition: function (players) {
+            return [...players].sort((a, b) => a.position - b.position);
+        },
+        /**
+         * @param {Object[]} players
+         * @param {number} playerId
+         * @returns {Object[]}
+         */
+        sortPlayersToStartWithPlayerIdIfPresent: function (players, playerId) {
+            const playerIndex = players.findIndex((player) => player.id === playerId);
+            if (playerIndex <= 0) {
+                return players;
+            }
+
+            return [...players.slice(playerIndex), ...players.slice(0, playerIndex)];
+        },
+        /**
          * @param {function (number, number)} fn such as (color, value) => {...}
          */
         execFnForEachCardInGame: function (fn) {
@@ -314,10 +347,8 @@ function (dojo, declare) {
                 COLOR_PINK,
                 COLOR_RED,
                 COLOR_YELLOW,
-                COLOR_BACK,
             ].forEach((color) => {
                 [
-                    VALUE_BACK,
                     VALUE_1,
                     VALUE_2,
                     VALUE_3,
@@ -387,13 +418,25 @@ function (dojo, declare) {
         sortPlayerCardsByValue: function () {
             const cardsWeightByPosition = {};
             this.execFnForEachCardInGame((color, value) => {
-                cardsWeightByPosition[this.getCardPositionInSpriteByColorAndValue(color, value)] = this.getCardWeightForColorAndValueToSortThemByValue(color, value);
+                const cardPosition = this.getCardPositionInSpriteByColorAndValue(color, value);
+                cardsWeightByPosition[cardPosition] = this.getCardWeightForColorAndValueToSortThemByValue(color, value);
             });
 
             this.playerHand.changeItemsWeight(cardsWeightByPosition);
         },
-        unselectAllCards: function () {
-            this.playerHand.unselectAll();
+        /**
+         * @param {number} position
+         * @returns {number}
+         */
+        getAbsoluteCardBackgroundPositionXFromCardPosition: function (position) {
+            return (position % NUMBER_OF_COLUMNS_IN_CARDS_SPRITE) * CARD_WIDTH;
+        },
+        /**
+         * @param {number} position
+         * @returns {number}
+         */
+        getAbsoluteCardBackgroundPositionYFromCardPosition: function (position) {
+            return Math.floor(position / NUMBER_OF_COLUMNS_IN_CARDS_SPRITE) * CARD_HEIGHT;
         },
         /**
          *
@@ -657,55 +700,62 @@ function (dojo, declare) {
                 .map((item) => this.getCardObjectFromPositionInSpriteAndId(item.type, item.id));
         },
         /**
-         * @param {Object[]} players
          * @returns {Object[]}
          */
-        sortPlayersByTurnOrderPosition: function (players) {
-            return [...players].sort((a, b) => a.position - b.position);
+        getAllTableCards: function () {
+            return this.tableCards.getAllItems()
+                .map((item) => this.getCardObjectFromPositionInSpriteAndId(item.type, item.id));
         },
         /**
-         * @param {Object[]} players
-         * @param {number} playerId
          * @returns {Object[]}
          */
-        sortPlayersToStartWithPlayerIdIfPresent: function (players, playerId) {
-            const playerIndex = players.findIndex((player) => player.id === playerId);
-            if (playerIndex <= 0) {
-                return players;
-            }
-
-            return [...players.slice(playerIndex), ...players.slice(0, playerIndex)];
+        getSelectedTableCards: function () {
+            return this.tableCards.getSelectedItems()
+                .map((item) => this.getCardObjectFromPositionInSpriteAndId(item.type, item.id));
+        },
+        unselectAllCards: function () {
+            this.playerHand.unselectAll();
+            this.tableCards.unselectAll();
         },
         /**
-         * @param {Object[]} cards
-         * @param {string} domId
-         * @param {function(number)} [onBeforeFirstAnimation]
-         * @param {function(number)} [onAfterEachAnimation]
+         * @param {string} playerId
+         * @param {Object} playerCard
+         * @param {Object} tableCard
          */
-        moveTemporaryCardsFromDomIdToPlayerHand: function (cards, domId, onBeforeFirstAnimation, onAfterEachAnimation) {
-            if (cards.length <= 0) {
-                return;
+        swap2CardsBetweenPlayerAndTable: function (playerId, playerCard, tableCard) {
+            // get cards weight for smoother animations
+            const playerCardPosition = this.getCardPositionInSpriteByColorAndValue(playerCard.color, playerCard.value);
+            const tableCardPosition = this.getCardPositionInSpriteByColorAndValue(tableCard.color, tableCard.value);
+            const playerCardWeight = this.playerHand.getItemWeightById(playerCard.id);
+            const tableCardWeight = this.tableCards.getItemWeightById(tableCard.id);
+
+            // move card from player to table
+            this.tableCards.changeItemsWeight({ [playerCardPosition]: tableCardWeight });
+            if (playerId === this.player_id) {
+                const playerCardDomId = `${DOM_ID_PLAYER_HAND}_item_${playerCard.id}`;
+                this.addCardsToTable([playerCard], playerCardDomId);
+                this.playerHand.removeFromStockById(playerCard.id);
+            } else {
+                const playerCardDomId = `player-table-${playerId}-hand-cards`;
+                this.addCardsToTable([playerCard], playerCardDomId);
             }
 
-            if (typeof onBeforeFirstAnimation === 'function') {
-                onBeforeFirstAnimation.bind(this)(0);
-            }
-
-            for (let i = 0; i < cards.length; i++) {
-                setTimeout(
-                    () => {
-                        this.addCardsToPlayerHand([cards[i]], true, domId);
-                    },
-                    i * 1000
+            // move card from table to player
+            const tableCardDomId = `${DOM_ID_TABLE_CARDS}_item_${tableCard.id}`;
+            if (playerId === this.player_id) {
+                this.playerHand.changeItemsWeight({ [tableCardPosition]: playerCardWeight });
+                this.addCardsToPlayerHand([tableCard], tableCardDomId);
+                this.tableCards.removeFromStockById(tableCard.id);
+            } else {
+                const animation = this.slideToObject(
+                    tableCardDomId,
+                    `player-table-${playerId}-hand-cards`,
                 );
-                setTimeout(
-                    () => {
-                        if (typeof onAfterEachAnimation === 'function') {
-                            onAfterEachAnimation.bind(this)(i);
-                        }
-                    },
-                    (i + 1) * 1000
-                );
+                dojo.connect(animation, 'onEnd', () => {
+                    this.fadeOutAndDestroy(tableCardDomId);
+                });
+                animation.play();
+                this.tableCards.removeFromStockById(tableCard.id);
             }
         },
         /**
@@ -801,7 +851,9 @@ function (dojo, declare) {
         },
         setupCards: function () {
             this.playerHand = this.buildInteractiveStockComponent(DOM_ID_PLAYER_HAND, this.onPlayerCardSelected, this.onPlayerCardUnselected);
+            this.playerHand.setSelectionMode(2);
             this.tableCards = this.buildInteractiveStockComponent(DOM_ID_TABLE_CARDS, this.onTableCardSelected, this.onTableCardUnselected);
+            this.tableCards.setSelectionMode(0);
 
             this.otherPlayersHandByPlayerId = {};
             Object.entries(this.players).forEach((entry) => {
@@ -832,7 +884,7 @@ function (dojo, declare) {
             this.execFnForEachCardInGame((color, value) => {
                 const cardPositionInSprite = this.getCardPositionInSpriteByColorAndValue(color, value);
                 stock.addItemType(
-                    cardPositionInSprite, // stock item ID
+                    cardPositionInSprite, // stock item type
                     cardPositionInSprite, // card weight (used for sorting)
                     cardsImageUrl, // sprite URL
                     cardPositionInSprite // position in sprite
@@ -846,9 +898,9 @@ function (dojo, declare) {
 
                 const cardId = parseInt(itemId, 10);
                 if (stock.isSelected(cardId)) {
-                    onCardSelected(cardId);
+                    onCardSelected.bind(this)(cardId);
                 } else {
-                    onCardUnselected(cardId);
+                    onCardUnselected.bind(this)(cardId);
                 }
             });
 
@@ -867,15 +919,13 @@ function (dojo, declare) {
             stock.autowidth = true;
 
             const cardsImageUrl = g_gamethemeurl+'img/'+CARDS_IMAGE_PATH;
-            this.execFnForEachCardInGame((color, value) => {
-                const cardPositionInSprite = this.getCardPositionInSpriteByColorAndValue(color, value);
-                stock.addItemType(
-                    cardPositionInSprite, // stock item ID
-                    cardPositionInSprite, // card weight (used for sorting)
-                    cardsImageUrl, // sprite URL
-                    cardPositionInSprite // position in sprite
-                );
-            });
+            const cardPositionInSprite = this.getCardPositionInSpriteByColorAndValue(COLOR_BACK, VALUE_BACK);
+            stock.addItemType(
+                cardPositionInSprite, // stock item type
+                cardPositionInSprite, // card weight (used for sorting)
+                cardsImageUrl, // sprite URL
+                cardPositionInSprite // position in sprite
+            );
 
             return stock;
         },
@@ -896,66 +946,91 @@ function (dojo, declare) {
          * @param {number} cardId
          */
         onPlayerCardSelected: function (cardId) {
-            // @TODO: check if needed
+            const selectedPlayerCards = this.getSelectedPlayerCards();
+            const selectedTableCards = this.getSelectedTableCards();
+            if (selectedPlayerCards.length > 2) {
+                // if more than 2 player cards are selected, unselect all (because this would be a bug)
+                this.unselectAllCards();
+            } else if (selectedPlayerCards.length === 2) {
+                this.on2PlayerCardsSelected();
+            } else if (selectedPlayerCards.length === 1 && selectedTableCards.length === 1) {
+                this.on1PlayerCardAnd1TableCardSelected();
+            }
         },
         /**
          * @param {number} cardId
          */
         onPlayerCardUnselected: function (cardId) {
-            // @TODO: check if needed
         },
         /**
          * @param {number} cardId
          */
         onTableCardSelected: function (cardId) {
-            // @TODO: check if needed
+            const selectedPlayerCards = this.getSelectedPlayerCards();
+            const selectedTableCards = this.getSelectedTableCards();
+            if (selectedTableCards.length > 1) {
+                // if more than 1 table cards are selected, unselect all (because this would be a bug)
+                this.unselectAllCards();
+            } else if (selectedPlayerCards.length === 1 && selectedTableCards.length === 1) {
+                this.on1PlayerCardAnd1TableCardSelected();
+            }
         },
         /**
          * @param {number} cardId
          */
         onTableCardUnselected: function (cardId) {
-            // @TODO: check if needed
         },
         onClickOnTogglePlayerHandSortButton: function () {
             const currentSortingMode = this.getCurrentPlayerCardsSortingMode();
             if (currentSortingMode === PLAYER_HAND_SORT_BY_COLOR) {
-                $(DOM_ID_PLAYER_HAND_TOGGLE_SORT_BUTTON_LABEL).innerHTML = _('Sorted by value');
+                $(DOM_ID_PLAYER_HAND_TOGGLE_SORT_BUTTON_LABEL).innerHTML = _('Sort by color');
                 dojo.attr(DOM_ID_PLAYER_HAND_TOGGLE_SORT_BUTTON, 'data-current-sort', PLAYER_HAND_SORT_BY_VALUE);
                 this.addTooltip(DOM_ID_PLAYER_HAND_TOGGLE_SORT_BUTTON, '', _('Click this button to sort your hand by color.'));
                 this.sortPlayerCardsByValue();
             } else {
-                $(DOM_ID_PLAYER_HAND_TOGGLE_SORT_BUTTON_LABEL).innerHTML = _('Sorted by color');
+                $(DOM_ID_PLAYER_HAND_TOGGLE_SORT_BUTTON_LABEL).innerHTML = _('Sort by value');
                 dojo.attr(DOM_ID_PLAYER_HAND_TOGGLE_SORT_BUTTON, 'data-current-sort', PLAYER_HAND_SORT_BY_COLOR);
                 this.addTooltip(DOM_ID_PLAYER_HAND_TOGGLE_SORT_BUTTON, '', _('Click this button to sort your hand by value.'));
                 this.sortPlayerCardsByColor();
             }
         },
-        onSwapCards: function() {
-            const action = 'actPlayCard';
+        on2PlayerCardsSelected: function() {
+            const cards = this.getSelectedPlayerCards();
+            if (cards.length !== 2) {
+                this.unselectAllCards();
+                return;
+            }
+
+            const card1Position = this.getCardPositionInSpriteByColorAndValue(cards[0].color, cards[0].value);
+            const card2Position = this.getCardPositionInSpriteByColorAndValue(cards[1].color, cards[1].value);
+            const card1Weight = this.playerHand.getItemWeightById(cards[0].id);
+            const card2Weight = this.playerHand.getItemWeightById(cards[1].id);
+            this.playerHand.changeItemsWeight({ [card1Position]: card2Weight, [card2Position]: card1Weight });
+
+            this.unselectAllCards();
+        },
+        on1PlayerCardAnd1TableCardSelected: function() {
+            const action = 'actSwapCard';
             if (!this.checkAction(action)) {
                 return;
             }
 
-            const cards = this.getSelectedPlayerCards();
-            if (cards.length !== 1) {
+            const playerCards = this.getSelectedPlayerCards();
+            if (playerCards.length !== 1) {
+                this.unselectAllCards();
                 return;
             }
-            const playedPlayerCardId = cards[0].id;
-
-            // @TODO: get selected table card ID
-            const playedTableCardId = 42;
+            const tableCards = this.getSelectedTableCards();
+            if (tableCards.length !== 1) {
+                this.unselectAllCards();
+                return;
+            }
+            const playedPlayerCardId = playerCards[0].id;
+            const playedTableCardId = tableCards[0].id;
 
             this.bgaPerformAction(action, {playedPlayerCardId, playedTableCardId});
 
             this.unselectAllCards();
-        },
-        onKnock: function () {
-            const action = 'actKnock';
-            if (!this.checkAction(action)) {
-                return;
-            }
-
-            this.bgaPerformAction(action, {});
         },
 
         ///////////////////////////////////////////////////
@@ -977,6 +1052,11 @@ function (dojo, declare) {
                 ['roundStarted', 1],
                 ['roundEnded', 1],
                 ['cardsDealt', 1],
+                ['cardsDealtOnTable', 1],
+                ['cardSwapped', 500],
+                ['zeroAchieved', 3000],
+                ['knocked', 500],
+                ['secondKnocked', 500],
             ].forEach((notif) => {
                 const name = notif[0];
                 const lockDurationInMs = notif[1];
@@ -990,15 +1070,6 @@ function (dojo, declare) {
                 }
             });
         },
-        notif_cardsDealt: function (data) {
-            this.playerHand.removeAll();
-            this.addCardsToPlayerHand(data.args.cards);
-            this.sortPlayerCardsByCurrentSortingMode();
-        },
-        notif_cardsDealtOnTable: function (data) {
-            this.playerHand.removeAll();
-            this.addCardsToTable(data.args.cards);
-        },
         notif_roundStarted: function (data) {
             this.currentRound = data.args.currentRound;
             this.setupRoundsInfo();
@@ -1006,6 +1077,27 @@ function (dojo, declare) {
         notif_roundEnded: function (data) {
             this.players = data.args.players;
             this.setupPlayersScore();
+        },
+        notif_cardsDealt: function (data) {
+            this.playerHand.removeAll();
+            this.addCardsToPlayerHand(data.args.cards);
+            this.sortPlayerCardsByCurrentSortingMode();
+        },
+        notif_cardsDealtOnTable: function (data) {
+            this.tableCards.removeAll();
+            this.addCardsToTable(data.args.cards);
+        },
+        notif_cardSwapped: function (data) {
+            this.swap2CardsBetweenPlayerAndTable(data.args.playerId, data.args.playerCard, data.args.tableCard);
+        },
+        notif_zeroAchieved: function (data) {
+            // @TODO: show zero achieved animation
+        },
+        notif_knocked: function (data) {
+            // @TODO: show knocked animation
+        },
+        notif_secondKnocked: function (data) {
+            // @TODO: show knocked animation
         },
    });
 });

@@ -75,9 +75,6 @@ Board
  */
 #board {
     position: relative;
-    /*display: flex;*/
-    /*align-items: center;*/
-    /*justify-content: center;*/
     min-width: 740px;
 }
 /**
@@ -157,9 +154,14 @@ Players and table cards
 #my-hand-wrapper .stockitem:hover {
     cursor: pointer;
     margin: 4px;
-    border: 2px solid black !important;
+    border: 2px solid black;
 }
-.cards-wrapper .stockitem_selected {
+#table-cards-wrapper .stockitem.stockitem_unselectable:hover {
+    cursor: default;
+    margin: 5px;
+    border: 1px solid grey;
+}
+.cards-wrapper .stockitem.stockitem_selected {
     margin: 3px;
     transform: scale(1.02);
     border: 2px solid black !important;

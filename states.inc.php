@@ -74,8 +74,8 @@ $machinestates = [
     // The player must choose to swap a card or knock
     ST_PLAYER_TURN => [
         'name' => 'playerTurn',
-        'description' => clienttranslate('${actplayer} must swap a card or knock'),
-        'descriptionmyturn' => clienttranslate('${you} must swap a card or knock'),
+        'description' => clienttranslate('${actplayer} must swap a card with the table or knock'),
+        'descriptionmyturn' => clienttranslate('${you} must swap a card with the table or knock'),
         'type' => 'activeplayer',
         'args' => 'argPlayerTurn',
         'possibleactions' => ['actSwapCard', 'actKnock'],

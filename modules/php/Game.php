@@ -41,7 +41,7 @@ class Game extends \Table
     private const CARD_LOCATION_PLAYER_HAND = 'hand';
     private const CARD_LOCATION_TABLE = 'table';
 
-    /** @var mixed Deck (BGA framework component to manage cards) */
+    /** @var \Deck (BGA framework component to manage cards) */
     private $deck;
 
     /**
@@ -127,7 +127,7 @@ class Game extends \Table
                     COLOR_PINK,
                     COLOR_RED,
                     COLOR_YELLOW,
-                ] as $colorId) {
+                ] as $color) {
             foreach([
                         VALUE_1,
                         VALUE_2,
@@ -139,7 +139,7 @@ class Game extends \Table
                         VALUE_8,
                     ] as $value) {
                 $cards[] = [
-                    'type' => $colorId,
+                    'type' => $color,
                     'type_arg' => $value,
                     'nbr' => 1,
                 ];
@@ -219,15 +219,8 @@ class Game extends \Table
         }
 
         // swap cards
-        $newCurrentPlayerCards = $this->swapCard($playedPlayerCard, $playedTableCard, $currentPlayerId, $currentPlayerCards);
-        $this->notify->all('cardSwapped', clienttranslate('${player_name} replaced the card ${tableCardImage} with ${playerCardImage}'), [
-            'playerId' => $currentPlayerId,
-            'playerCard' => $formattedPlayerCard = $this->formatCardForClient($playedPlayerCard),
-            'tableCard' => $formattedTableCard = $this->formatCardForClient($playedTableCard),
-            'playerCardImage' => $formattedPlayerCard,
-            'tableCardImage' => $formattedTableCard,
-            'player_name' => $currentPlayerName = $this->getCurrentPlayerName(),
-        ]);
+        $currentPlayerName = $this->getCurrentPlayerName();
+        $newCurrentPlayerCards = $this->swapCard($playedPlayerCard, $playedTableCard, $currentPlayerId, $currentPlayerCards, $currentPlayerName);
 
         // check if current player has achieved ZERO after this swap
         if ($this->getPointsForCards($newCurrentPlayerCards) === 0) {
@@ -254,7 +247,7 @@ class Game extends \Table
         // check if this is the second knocking
         if ($howManyKnockings === 2) {
             $this->setGameStateValue(self::GAME_STATE_SECOND_KNOCKING_PLAYER_ID, $currentPlayerId);
-            $this->notify->all('secondKnocked', clienttranslate('${player_name} knocked, starting the '), [
+            $this->notify->all('secondKnocked', clienttranslate('${player_name} knocked, everyone else can play one more time before the round ends'), [
                 'playerId' => $currentPlayerId,
                 'player_name' => $this->getActivePlayerName(),
             ]);
@@ -289,7 +282,11 @@ class Game extends \Table
         $this->deck->moveAllCardsInLocation(null, self::CARD_LOCATION_DECK);
         $this->deck->shuffle(self::CARD_LOCATION_DECK);
 
-        // increment current round value
+        // reset round states
+        $this->setGameStateValue(self::GAME_STATE_HOW_MANY_KNOCKING, 0);
+        $this->setGameStateValue(self::GAME_STATE_SECOND_KNOCKING_PLAYER_ID, -1);
+
+        // increment current round
         $newRound = (int) $this->getGameStateValue(self::GAME_STATE_CURRENT_ROUND) + 1;
         $this->setGameStateValue(self::GAME_STATE_CURRENT_ROUND, $newRound);
 
@@ -713,7 +710,7 @@ class Game extends \Table
      * @param Card[] $currentPlayerCards
      * @return Card[] $newPlayerCards
      */
-    private function swapCard(Card $playedPlayerCard, Card $playedTableCard, int $currentPlayerId, array $currentPlayerCards): array {
+    private function swapCard(Card $playedPlayerCard, Card $playedTableCard, int $currentPlayerId, array $currentPlayerCards, string $currentPlayerName): array {
         $newPlayerCards = [];
 
         // swap cards locally to compute $newPlayerCards
@@ -726,8 +723,18 @@ class Game extends \Table
         }
 
         // swap cards in database
-        $this->deck->moveCards($playedPlayerCard->getId(), self::CARD_LOCATION_TABLE);
-        $this->deck->moveCards($playedTableCard->getId(), self::CARD_LOCATION_PLAYER_HAND, $currentPlayerId);
+        $this->deck->moveCard($playedPlayerCard->getId(), self::CARD_LOCATION_TABLE);
+        $this->deck->moveCard($playedTableCard->getId(), self::CARD_LOCATION_PLAYER_HAND, $currentPlayerId);
+
+        // notify players about the swap
+        $this->notify->all('cardSwapped', clienttranslate('${player_name} replaced the card ${tableCardImage} with ${playerCardImage}'), [
+            'playerId' => $currentPlayerId,
+            'playerCard' => $formattedPlayerCard = $this->formatCardForClient($playedPlayerCard),
+            'tableCard' => $formattedTableCard = $this->formatCardForClient($playedTableCard),
+            'playerCardImage' => $formattedPlayerCard,
+            'tableCardImage' => $formattedTableCard,
+            'player_name' => $currentPlayerName,
+        ]);
 
         return $newPlayerCards;
     }
